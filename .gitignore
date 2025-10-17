@@ -1,0 +1,14 @@
+# Dependencies
+/node_modules
+
+# Build output
+/dist
+
+# Environment variables
+.env
+
+# IDE configuration files (optional but good practice)
+.vscode/
+
+# OS generated files (optional but good practice)
+.DS_Store
