@@ -8,7 +8,6 @@ import type {
   IAiPlayerService,
   Move,
   PlayerSymbol,
-  DescriptiveCell,
 } from './types.js';
 
 /**
@@ -57,7 +56,9 @@ export class Game {
       // console.log(payload);
 
       try {
-        console.log(`\n🤔 Asking ${currentPlayer.name} for a move...`);
+        console.log(
+          `\n ----------🤔 Asking ${currentPlayer.name} for a move ----------`
+        );
         const aiResponse = await currentPlayer.getMove(payload);
 
         // console.log(aiResponse);
@@ -92,59 +93,55 @@ export class Game {
     this.announceWinner();
   }
 
-  // --- PRIVATE HELPER METHODS ---
+  //  Assembles the complete data payload required by the AI for its turn.
 
-  /**
-   * Assembles the complete data payload required by the AI for its turn.
-   */
   private createApiPayload(player: IAiPlayerService): ApiInput {
     const opponent =
       this.currentPlayerSymbol === 'X' ? this.players['O'] : this.players['X'];
 
-    // --- NEW: Create a more descriptive board representation ---
-    const descriptiveBoard: DescriptiveCell[] = [];
-    for (let r = 0; r < 3; r++) {
-      for (let c = 0; c < 3; c++) {
-        descriptiveBoard.push({
-          row: r,
-          col: c,
-          content: this.board[r]![c]!, // Content can be 'X', 'O', or null
-        });
-      }
-    }
+    const boardString = this.board
+      .map((row) => row.map((cell) => cell || '.').join('|'))
+      .join('\n');
+
+    console.log(boardString);
 
     return {
       context: {
         gameRules:
           "3x3 Tic-Tac-Toe. Win with 3 in a row (any direction). X goes first. On turns 1-7, there's a 33% chance a random empty cell gets frozen for the turn. You can't play on a frozen cell. No freezing on turns 8-9.",
-        yourPersona: {
-          symbol: player.symbol,
-          name: player.name,
-          personality:
-            "A cocky, sharp-witted pro gamer. You love to get in your opponent's head with clever taunts and psychological jabs.",
-        },
-        opponent: {
-          name: opponent.name,
-          lastTrashTalk: this.lastTrashTalk,
-        },
+        // yourPersona: {
+        //   symbol: player.symbol,
+        //   name: player.name,
+        //   personality:
+        //     "A cocky, sharp-witted pro gamer. You love to get in your opponent's head with clever taunts and psychological jabs.",
+        // },
+        // opponent: {
+        //   name: opponent.name,
+        //   // lastTrashTalk: this.lastTrashTalk,
+        // },
       },
       gameState: {
         turnNumber: this.turnNumber,
-        board: descriptiveBoard,
+        board: boardString,
         frozenCell: this.frozenCell,
         gameStatus: this.gameStatus,
       },
       instructions: {
-        task: 'Analyze the board and find the optimal move. Based on your persona, craft a short, witty trash talk message (smack talk).',
+        task:
+          "Analyze the `gameState.board`. The board is a multi-line string where '.' represents an empty cell. " +
+          'You MUST follow this priority: ' +
+          '1. Find a move that wins the game. ' +
+          "2. If no winning move, find a move that BLOCKS your opponent's winning move. " +
+          '3. If neither, find the best strategic move. ' +
+          '4. You cannot play in the `frozenCell`.',
         responseFormat:
-          "You must respond with a valid JSON object. The JSON must contain these exact keys: 'move' (an object with 'row' and 'col' keys), 'reasoning' (a string), and 'trashTalk' (a string, max 20 words).",
+          "You must respond with a valid JSON object. The JSON must contain these exact keys: 'move' (an object with 'row' and 'col' keys).",
       },
     };
   }
 
-  /**
-   * Implements the 33% chance to freeze a random empty cell on turns 1-7.
-   */
+  // Implements the 33% chance to freeze a random empty cell on turns 1-7.
+
   private handleFrozenCell() {
     this.frozenCell = null; // Unfreeze cell from the previous turn.
     if (this.turnNumber <= 7 && Math.random() < 0.33) {
@@ -165,9 +162,8 @@ export class Game {
     }
   }
 
-  /**
-   * Validates if a move from an AI is legal.
-   */
+  //  Validates if a move from an AI is legal.
+
   private isValidMove(move: Move): boolean {
     if (!move || move.row < 0 || move.row > 2 || move.col < 0 || move.col > 2) {
       return false;
@@ -182,16 +178,10 @@ export class Game {
     return this.board[move.row]![move.col] === null;
   }
 
-  /**
-   * Applies a valid move to the board.
-   */
   private applyMove(move: Move) {
     this.board[move.row]![move.col] = this.currentPlayerSymbol;
   }
 
-  /**
-   * Checks for a win or draw condition after each move.
-   */
   private updateGameStatus() {
     const lines = [
       [this.board[0][0], this.board[0][1], this.board[0][2]],
@@ -216,24 +206,27 @@ export class Game {
     }
   }
 
-  /**
-   * Prints the current state of the board to the console.
-   */
+  // Prints the current state of the board to the console.
 
   private printBoard(frozenCell: Move | null) {
-    if (!frozenCell) {
-      console.log('\nCurrent Board:');
-      this.board.forEach((row) => {
-        console.log(`  ${row.map((cell) => cell || '.').join(' | ')}`);
-      });
-    } else {
-      console.log(`❄️     ${this.frozenCell!.row} ${this.frozenCell!.col}`);
-    }
+    console.log('\nCurrent Board:');
+
+    this.board.forEach((row, r) => {
+      const rowString = row
+        .map((cellValue, c) => {
+          if (frozenCell && frozenCell.row === r && frozenCell.col === c) {
+            return '❄️';
+          }
+          return cellValue || ' ';
+        })
+        .join(' | ');
+
+      console.log(`  ${rowString}`);
+    });
   }
 
-  /**
-   * Displays the final result of the game.
-   */
+  // Displays the final result of the game.
+
   private announceWinner() {
     console.log('\n--- 🏁 GAME OVER ---');
     if (this.gameStatus === 'draw') {

@@ -14,31 +14,23 @@ export interface Move {
   col: number;
 }
 
-export interface DescriptiveCell {
-  row: number;
-  col: number;
-  content: Cell; // Reuses the 'X' | 'O' | null type
-}
-
-// --- API Communication Types ---
-
 // The full data payload sent to an AI for its turn.
 export interface ApiInput {
   context: {
     gameRules: string;
-    yourPersona: {
-      symbol: PlayerSymbol;
-      name: string;
-      personality: string;
-    };
-    opponent: {
-      name: string;
-      lastTrashTalk: string | null;
-    };
+    // yourPersona: {
+    //   symbol: PlayerSymbol;
+    //   name: string;
+    //   personality: string;
+    // };
+    // opponent: {
+    //   name: string;
+    //   // lastTrashTalk: string | null;
+    // };
   };
   gameState: {
     turnNumber: number;
-    board: DescriptiveCell[];
+    board: string;
     frozenCell: Move | null;
     gameStatus: 'ongoing' | 'X_wins' | 'O_wins' | 'draw';
   };
@@ -56,12 +48,6 @@ export interface ApiResponse {
 }
 
 // --- AI Player Service Interface ---
-
-/**
- * Defines the contract for any AI player.
- * Any AI service (ChatGPT, Gemini, etc.) must implement this interface
- * to be able to play the game. This makes the system plug-and-play.
- */
 export interface IAiPlayerService {
   name: string;
   symbol: PlayerSymbol;

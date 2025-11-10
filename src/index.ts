@@ -23,13 +23,16 @@ function main() {
     process.exit(1);
   }
 
-  // --- Assemble the Players ---
-  // You can now choose any two AIs to fight!
+  // const player1: IAiPlayerService = new ChatGptProvider(
+  //   'X',
+  //   openAiKey!,
+  //   'gpt-3.5-turbo'
+  // );
 
   const player1: IAiPlayerService = new ChatGptProvider(
     'X',
     openAiKey!,
-    'gpt-3.5-turbo'
+    'gpt-4o'
   );
   const player2: IAiPlayerService = new DeepseekProvider(
     'O',
