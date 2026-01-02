@@ -1,51 +1,36 @@
 // src/index.ts
-import dotenv from 'dotenv';
+import { Command } from 'commander';
 import { Game } from './game.js';
-import type { IAiPlayerService } from './types.js';
+import { ConsoleUI } from './ui.js';
+import { createPlayer } from './config.js';
 
-// Import the specific AI provider classes you want to use
-import { ChatGptProvider } from './ai-providers/chatGptProvider.js';
-import { GeminiProvider } from './ai-providers/geminiProvider.js';
-import { DeepseekProvider } from './ai-providers/deepseekProvider.js';
+const program = new Command();
 
-// Load environment variables from .env file
-dotenv.config();
+program
+  .name('ai-tic-tac-toe')
+  .description('AI Battle Arena for Tic-Tac-Toe')
+  .version('1.0.0')
+  .option('--p1 <type>', 'Player 1 type (gpt3, gpt4, gpt4o, gemini, deepseek)', 'gpt4o')
+  .option('--p2 <type>', 'Player 2 type (gpt3, gpt4, gpt4o, gemini, deepseek)', 'deepseek')
+  .parse(process.argv);
+
+const options = program.opts();
 
 function main() {
-  const openAiKey = process.env.OPENAI_API_KEY;
-  const geminiKey = process.env.GEMINI_API_KEY;
-  const deepseekKey = process.env.DEEPSEEK_API_KEY;
+  try {
+    console.log(`Setting up match: ${options.p1} (X) vs ${options.p2} (O)`);
 
-  if (!openAiKey || !geminiKey || !deepseekKey) {
-    console.error(
-      'Missing API keys in .env file. You need OPENAI_API_KEY, GEMINI_API_KEY, and DEEPSEEK_API_KEY.'
-    );
+    const player1 = createPlayer(options.p1, 'X');
+    const player2 = createPlayer(options.p2, 'O');
+
+    // --- Start the Game ---
+    const ui = new ConsoleUI();
+    const game = new Game(player1, player2, ui);
+    game.play();
+  } catch (error: any) {
+    console.error(error.message);
     process.exit(1);
   }
-
-  // const player1: IAiPlayerService = new ChatGptProvider(
-  //   'X',
-  //   openAiKey!,
-  //   'gpt-3.5-turbo'
-  // );
-
-  const player1: IAiPlayerService = new ChatGptProvider(
-    'X',
-    openAiKey!,
-    'gpt-4o'
-  );
-  const player2: IAiPlayerService = new DeepseekProvider(
-    'O',
-    deepseekKey!,
-    'deepseek-chat'
-  );
-
-  // const player1: IAiPlayerService = new ChatGptProvider('X', openAiKey!, 'gpt-4o');
-  // const player2: IAiPlayerService = new DeepseekProvider('O', deepseekKey!, 'deepseek-chat');
-
-  // --- Start the Game ---
-  const game = new Game(player1, player2);
-  game.play();
 }
 
 main();

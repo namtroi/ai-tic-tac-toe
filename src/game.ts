@@ -2,6 +2,8 @@
 
 // --- IMPORTS ---
 import { log } from 'console';
+import { GamePrompts } from './prompts.js';
+import type { GameUI } from './ui.js';
 import type {
   ApiInput,
   Board,
@@ -34,7 +36,14 @@ export class Game {
    * @param playerX An object that implements the IAiPlayerService interface for player X.
    * @param playerO An object that implements the IAiPlayerService interface for player O.
    */
-  constructor(playerX: IAiPlayerService, playerO: IAiPlayerService) {
+
+  /**
+   * Constructs a new game instance.
+   * @param playerX An object that implements the IAiPlayerService interface for player X.
+   * @param playerO An object that implements the IAiPlayerService interface for player O.
+   * @param ui An object that implements the GameUI interface for handling output.
+   */
+  constructor(playerX: IAiPlayerService, playerO: IAiPlayerService, private ui: GameUI) {
     this.players = { X: playerX, O: playerO };
   }
 
@@ -42,10 +51,8 @@ export class Game {
    * Starts and runs the game loop until a winner is found or a draw occurs.
    */
   public async play() {
-    console.log(
-      `--- 🚀 GAME START: ${this.players['X'].name} (X) vs. ${this.players['O'].name} (O) ---`
-    );
-    this.printBoard(null);
+    this.ui.onGameStart(this.players['X'], this.players['O']);
+    this.ui.onBoardUpdate(this.board, null);
 
     while (this.gameStatus === 'ongoing') {
       const currentPlayer = this.players[this.currentPlayerSymbol];
@@ -56,9 +63,7 @@ export class Game {
       // console.log(payload);
 
       try {
-        console.log(
-          `\n ----------🤔 Asking ${currentPlayer.name} for a move ----------`
-        );
+        this.ui.onMoveFunction(currentPlayer);
         const aiResponse = await currentPlayer.getMove(payload);
 
         // console.log(aiResponse);
@@ -66,15 +71,13 @@ export class Game {
         if (this.isValidMove(aiResponse.move)) {
           this.applyMove(aiResponse.move);
 
-          console.log(`${currentPlayer.name} 🎤 ${aiResponse.trashTalk}`);
+          this.ui.onMoveMade(currentPlayer, aiResponse.move, aiResponse.trashTalk);
           this.lastTrashTalk = aiResponse.trashTalk;
         } else {
-          console.warn(
-            `[Turn ${this.turnNumber}] ⚠️ ${currentPlayer.name} made an invalid move! Skipping turn.`
-          );
+          this.ui.onInvalidMove(currentPlayer, this.turnNumber);
         }
 
-        this.printBoard(null);
+        this.ui.onBoardUpdate(this.board, this.frozenCell);
         this.updateGameStatus();
 
         if (this.gameStatus === 'ongoing') {
@@ -83,9 +86,7 @@ export class Game {
             this.currentPlayerSymbol === 'X' ? 'O' : 'X';
         }
       } catch (error) {
-        console.error(
-          `❌ Game cannot continue due to an API error from ${currentPlayer.name}.`
-        );
+        this.ui.onError(currentPlayer);
         this.gameStatus = 'draw'; // End game on error
       }
     }
@@ -96,29 +97,15 @@ export class Game {
   //  Assembles the complete data payload required by the AI for its turn.
 
   private createApiPayload(player: IAiPlayerService): ApiInput {
-    const opponent =
-      this.currentPlayerSymbol === 'X' ? this.players['O'] : this.players['X'];
+    // console.log(boardString); // Removed debug log or move to UI if needed debug mode
 
     const boardString = this.board
       .map((row) => row.map((cell) => cell || '.').join('|'))
       .join('\n');
 
-    console.log(boardString);
-
     return {
       context: {
-        gameRules:
-          "3x3 Tic-Tac-Toe. Win with 3 in a row (any direction). X goes first. On turns 1-7, there's a 33% chance a random empty cell gets frozen for the turn. You can't play on a frozen cell. No freezing on turns 8-9.",
-        // yourPersona: {
-        //   symbol: player.symbol,
-        //   name: player.name,
-        //   personality:
-        //     "A cocky, sharp-witted pro gamer. You love to get in your opponent's head with clever taunts and psychological jabs.",
-        // },
-        // opponent: {
-        //   name: opponent.name,
-        //   // lastTrashTalk: this.lastTrashTalk,
-        // },
+        gameRules: GamePrompts.gameRules,
       },
       gameState: {
         turnNumber: this.turnNumber,
@@ -127,15 +114,8 @@ export class Game {
         gameStatus: this.gameStatus,
       },
       instructions: {
-        task:
-          "Analyze the `gameState.board`. The board is a multi-line string where '.' represents an empty cell. " +
-          'You MUST follow this priority: ' +
-          '1. Find a move that wins the game. ' +
-          "2. If no winning move, find a move that BLOCKS your opponent's winning move. " +
-          '3. If neither, find the best strategic move. ' +
-          '4. You cannot play in the `frozenCell`.',
-        responseFormat:
-          "You must respond with a valid JSON object. The JSON must contain these exact keys: 'move' (an object with 'row' and 'col' keys).",
+        task: GamePrompts.taskInstructions,
+        responseFormat: GamePrompts.responseFormat,
       },
     };
   }
@@ -156,8 +136,8 @@ export class Game {
       if (emptyCells.length > 0) {
         this.frozenCell =
           emptyCells[Math.floor(Math.random() * emptyCells.length)]!;
-
-        this.printBoard(this.frozenCell);
+        
+        // Note: Frozen cell update is handled in the main loop's onBoardUpdate
       }
     }
   }
@@ -206,35 +186,17 @@ export class Game {
     }
   }
 
-  // Prints the current state of the board to the console.
-
-  private printBoard(frozenCell: Move | null) {
-    console.log('\nCurrent Board:');
-
-    this.board.forEach((row, r) => {
-      const rowString = row
-        .map((cellValue, c) => {
-          if (frozenCell && frozenCell.row === r && frozenCell.col === c) {
-            return '❄️';
-          }
-          return cellValue || ' ';
-        })
-        .join(' | ');
-
-      console.log(`  ${rowString}`);
-    });
-  }
-
   // Displays the final result of the game.
 
   private announceWinner() {
-    console.log('\n--- 🏁 GAME OVER ---');
+    if (this.gameStatus === 'ongoing') return; // Should not happen given logic, but satisfies TS
+
     if (this.gameStatus === 'draw') {
-      console.log("It's a draw! Well played by both sides.");
+      this.ui.onGameOver('draw');
     } else {
       const winner =
         this.gameStatus === 'X_wins' ? this.players['X'] : this.players['O'];
-      console.log(`🏆 Winner is: ${winner.name} (${winner.symbol})!`);
+      this.ui.onGameOver(this.gameStatus, winner);
     }
   }
 }
