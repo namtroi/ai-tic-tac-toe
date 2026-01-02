@@ -1,7 +1,6 @@
 // src/game.ts
 
 // --- IMPORTS ---
-import { log } from 'console';
 import { GamePrompts } from './prompts.js';
 import type { GameUI } from './ui.js';
 import type {
